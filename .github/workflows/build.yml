@@ -3,9 +3,13 @@ name: Build CONTROL tipa
 on:
   workflow_dispatch:
   push:
+<<<<<<< HEAD
     branches:
       - main
       - master
+=======
+    branches: [ main, master ]
+>>>>>>> 73f8e0dc2318daa102ef1a2a8dd74718aeaabcd4
 
 jobs:
   build:
@@ -26,7 +30,12 @@ jobs:
           brew install ldid
 
       - name: Build tipa
+<<<<<<< HEAD
         run: make clean package
+=======
+        run: |
+          make clean package
+>>>>>>> 73f8e0dc2318daa102ef1a2a8dd74718aeaabcd4
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
