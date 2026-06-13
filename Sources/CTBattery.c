@@ -3,9 +3,9 @@
 #include <string.h>
 
 static io_registry_entry_t CTBatteryService(void) {
-    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("AppleSmartBattery"));
+    io_service_t service = IOServiceGetMatchingService(MACH_PORT_NULL, IOServiceMatching("AppleSmartBattery"));
     if (service) return service;
-    return IOServiceGetMatchingService(kIOMasterPortDefault, IOServiceMatching("IOPMPowerSource"));
+    return IOServiceGetMatchingService(MACH_PORT_NULL, IOServiceMatching("IOPMPowerSource"));
 }
 
 static int CTDictInt(CFDictionaryRef dict, CFStringRef key, int fallback) {

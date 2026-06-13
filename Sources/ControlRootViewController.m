@@ -171,17 +171,21 @@ typedef NS_ENUM(NSInteger, CTSection) {
 }
 
 - (void)chargeSwitchChanged:(UISwitch *)sender {
-    self.chargePolicy.enabled = sender.on;
-    self.chargePolicy.stopWhenPluggedIn = true;
-    CTChargePolicyWrite(&_chargePolicy);
+    CTChargePolicy policy = self.chargePolicy;
+    policy.enabled = sender.on;
+    policy.stopWhenPluggedIn = true;
+    self.chargePolicy = policy;
+    CTChargePolicyWrite(&policy);
     [self refreshAll];
 }
 
 - (void)chargeSliderChanged:(UISlider *)sender {
-    self.chargePolicy.maxPercent = roundf(sender.value);
-    self.chargePolicy.enabled = self.chargeSwitch.on;
-    self.chargePolicy.stopWhenPluggedIn = true;
-    CTChargePolicyWrite(&_chargePolicy);
+    CTChargePolicy policy = self.chargePolicy;
+    policy.maxPercent = roundf(sender.value);
+    policy.enabled = self.chargeSwitch.on;
+    policy.stopWhenPluggedIn = true;
+    self.chargePolicy = policy;
+    CTChargePolicyWrite(&policy);
     [self refreshAll];
 }
 
