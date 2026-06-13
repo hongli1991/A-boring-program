@@ -2,6 +2,7 @@
 #include <sys/sysctl.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 static uint64_t CTSysctlUInt64(const char *name) {
     uint64_t value = 0;
@@ -19,8 +20,12 @@ CTStatus CTCPURead(CTCPUInfo *info) {
     info->currentHz = CTSysctlUInt64("hw.cpufrequency");
     info->maxHz = CTSysctlUInt64("hw.cpufrequency_max");
     info->minHz = CTSysctlUInt64("hw.cpufrequency_min");
-    snprintf(info->note, sizeof(info->note), "iOS does not expose a stable userspace CPU max-frequency write API. A kernel/PMGR backend is required for real enforcement.");
-    return (info->currentHz || info->maxHz || info->minHz) ? CTStatusOK : CTStatusUnsupported;
+    info->logicalCores = (int)sysconf(_SC_NPROCESSORS_CONF);
+    info->activeCores = (int)sysconf(_SC_NPROCESSORS_ONLN);
+    size_t machineSize = sizeof(info->machine);
+    sysctlbyname("hw.machine", info->machine, &machineSize, NULL, 0);
+    snprintf(info->note, sizeof(info->note), "iOS hides CPU frequency sysctls on many devices. Use thermal controls and verified PMGR backends for enforcement.");
+    return CTStatusOK;
 }
 
 CTStatus CTCPUSetMaxHz(uint64_t hz) {

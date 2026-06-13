@@ -8,8 +8,8 @@ CC := xcrun -sdk $(SDK) clang
 CFLAGS := -arch arm64 -miphoneos-version-min=$(MIN_IOS) -fobjc-arc -fmodules -I Sources -Wall -Wextra
 LDFLAGS_APP := -framework UIKit -framework Foundation -framework CoreFoundation -framework IOKit
 LDFLAGS_HELPER := -framework Foundation -framework CoreFoundation -framework IOKit
-COMMON_C := Sources/CTBattery.c Sources/CTChargePolicy.c Sources/CTCPU.c Sources/CTDisplay.c
-APP_SRC := Sources/main.m Sources/AppDelegate.m Sources/ControlRootViewController.m Sources/CTRoot.c $(COMMON_C)
+COMMON_C := Sources/CTBattery.c Sources/CTChargePolicy.c Sources/CTCPU.c Sources/CTDisplay.c Sources/CTThermal.c
+APP_SRC := Sources/main.m Sources/AppDelegate.m Sources/ControlRootViewController.m Sources/CTLocalization.m Sources/CTRoot.c $(COMMON_C)
 HELPER_SRC := Helper/main.c $(COMMON_C)
 
 .PHONY: all app helper package clean sign
@@ -23,6 +23,7 @@ app: $(BUILD_DIR)
 	mkdir -p $(APP_DIR)
 	$(CC) $(CFLAGS) $(APP_SRC) $(LDFLAGS_APP) -o $(APP_DIR)/$(APP_NAME)
 	cp Info.plist $(APP_DIR)/Info.plist
+	cp Resources/AppIcon.appiconset/*.png $(APP_DIR)/
 
 helper: $(BUILD_DIR)
 	mkdir -p $(APP_DIR)

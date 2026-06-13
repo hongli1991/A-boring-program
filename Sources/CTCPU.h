@@ -8,6 +8,9 @@ typedef struct {
     uint64_t currentHz;
     uint64_t maxHz;
     uint64_t minHz;
+    int activeCores;
+    int logicalCores;
+    char machine[64];
     char note[192];
 } CTCPUInfo;
 

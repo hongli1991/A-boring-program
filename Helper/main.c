@@ -2,6 +2,7 @@
 #include "../Sources/CTChargePolicy.h"
 #include "../Sources/CTCPU.h"
 #include "../Sources/CTDisplay.h"
+#include "../Sources/CTThermal.h"
 #include <CoreFoundation/CoreFoundation.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,6 +70,16 @@ static int cmd_display(int argc, char **argv) {
     return (int)status;
 }
 
+static int cmd_thermal(int argc, char **argv) {
+    if (argc < 3) {
+        printf("{\"thermalmonitordDisabled\":%s}\n", CTThermalDaemonDisabled() ? "true" : "false");
+        return 0;
+    }
+    CTStatus status = CTThermalSetDaemonDisabled(strcmp(argv[2], "off") == 0);
+    if (status != CTStatusOK) fprintf(stderr, "%s\n", CTStatusDescription(status));
+    return (int)status;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: control-helper <battery|charge|cpu|display>\n");
@@ -78,6 +89,7 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "charge") == 0) return cmd_charge(argc, argv);
     if (strcmp(argv[1], "cpu") == 0) return cmd_cpu(argc, argv);
     if (strcmp(argv[1], "display") == 0) return cmd_display(argc, argv);
+    if (strcmp(argv[1], "thermal") == 0) return cmd_thermal(argc, argv);
     fprintf(stderr, "unknown command\n");
     return 64;
 }

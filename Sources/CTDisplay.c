@@ -2,6 +2,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 #include <dlfcn.h>
+#include <notify.h>
 #include <string.h>
 
 typedef struct __IOMobileFramebuffer *IOMobileFramebufferRef;
@@ -47,6 +48,7 @@ CTStatus CTDisplayRead(CTDisplayInfo *info) {
         CFNumberGetValue((CFNumberRef)stored, kCFNumberIntType, &info->preferredMaxFps);
     }
     if (stored) CFRelease(stored);
+    info->unlock48Enabled = CFPreferencesGetAppBooleanValue(CFSTR("Unlock48FPS"), CFSTR("com.codex.control.display"), NULL);
     CTDisplayCopyPanelId(info->panelId, sizeof(info->panelId));
     return CTStatusOK;
 }
@@ -58,5 +60,40 @@ CTStatus CTDisplaySetPreferredMaxFPS(int fps) {
     CFPreferencesSetAppValue(CFSTR("MaxFPS"), value, CFSTR("com.codex.control.display"));
     CFRelease(value);
     if (!CFPreferencesAppSynchronize(CFSTR("com.codex.control.display"))) return CTStatusIOError;
+    return CTStatusOK;
+}
+
+static void CTDisplaySetDomainBool(CFStringRef domain, CFStringRef key, bool enabled) {
+    CFPreferencesSetAppValue(key, enabled ? kCFBooleanTrue : kCFBooleanFalse, domain);
+    CFPreferencesAppSynchronize(domain);
+}
+
+static void CTDisplaySetDomainInt(CFStringRef domain, CFStringRef key, int value) {
+    CFNumberRef number = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &value);
+    if (!number) return;
+    CFPreferencesSetAppValue(key, number, domain);
+    CFRelease(number);
+    CFPreferencesAppSynchronize(domain);
+}
+
+CTStatus CTDisplaySetUnlock48FPS(bool enabled) {
+    CFPreferencesSetAppValue(CFSTR("Unlock48FPS"), enabled ? kCFBooleanTrue : kCFBooleanFalse, CFSTR("com.codex.control.display"));
+    CFPreferencesAppSynchronize(CFSTR("com.codex.control.display"));
+
+    /*
+     * There is no public global "unlock 48 FPS" API. Old-device 48 FPS caps are
+     * commonly caused by thermal/display policy, so this writes the known app
+     * frame-duration escape hatch plus display-service preference hints.
+     */
+    CTDisplaySetDomainBool(CFSTR("com.apple.coreanimation"), CFSTR("CADisableMinimumFrameDurationOnPhone"), enabled);
+    CTDisplaySetDomainBool(CFSTR("com.apple.coreanimation"), CFSTR("CAHighFrameRateEnabled"), enabled);
+    CTDisplaySetDomainBool(CFSTR("com.apple.backboardd"), CFSTR("DisableMinimumFrameDurationOnPhone"), enabled);
+    CTDisplaySetDomainBool(CFSTR("com.apple.springboard"), CFSTR("DisableMinimumFrameDurationOnPhone"), enabled);
+    CTDisplaySetDomainInt(CFSTR("com.apple.backboardd"), CFSTR("PreferredFramesPerSecond"), enabled ? 60 : 0);
+    CTDisplaySetDomainInt(CFSTR("com.apple.springboard"), CFSTR("PreferredFramesPerSecond"), enabled ? 60 : 0);
+
+    notify_post("com.apple.coreanimation.preferences.changed");
+    notify_post("com.apple.springboard.displaychanged");
+    notify_post("com.apple.backboardd.displaychanged");
     return CTStatusOK;
 }

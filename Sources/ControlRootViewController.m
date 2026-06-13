@@ -1,8 +1,11 @@
 #import "ControlRootViewController.h"
+#import "CTLocalization.h"
 #include "CTBattery.h"
 #include "CTChargePolicy.h"
 #include "CTCPU.h"
 #include "CTDisplay.h"
+#include "CTRoot.h"
+#include "CTThermal.h"
 #include <math.h>
 
 typedef NS_ENUM(NSInteger, CTSection) {
@@ -18,9 +21,8 @@ typedef NS_ENUM(NSInteger, CTSection) {
 @property (nonatomic) CTChargePolicy chargePolicy;
 @property (nonatomic) CTDisplayInfo displayInfo;
 @property (nonatomic) CTCPUInfo cpuInfo;
-@property (nonatomic, strong) UISlider *chargeSlider;
+@property (nonatomic) BOOL thermalDisabled;
 @property (nonatomic, strong) UISwitch *chargeSwitch;
-@property (nonatomic, strong) UISegmentedControl *fpsControl;
 @property (nonatomic, strong) NSTimer *refreshTimer;
 @end
 
@@ -28,9 +30,12 @@ typedef NS_ENUM(NSInteger, CTSection) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"CONTROL";
+    UISegmentedControl *language = [[UISegmentedControl alloc] initWithItems:@[CTL(@"language.zh"), CTL(@"language.en")]];
+    language.selectedSegmentIndex = CTCurrentLanguage() == CTLanguageEnglish ? 1 : 0;
+    [language addTarget:self action:@selector(languageChanged:) forControlEvents:UIControlEventValueChanged];
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:language];
     self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh target:self action:@selector(refreshAll)];
-    [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"cell"];
+    [self applyLanguage];
     [self refreshAll];
     self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:5.0 target:self selector:@selector(refreshAll) userInfo:nil repeats:YES];
 }
@@ -39,12 +44,26 @@ typedef NS_ENUM(NSInteger, CTSection) {
     [self.refreshTimer invalidate];
 }
 
+- (void)applyLanguage {
+    self.title = CTL(@"app.title");
+}
+
 - (void)refreshAll {
     CTBatteryRead(&_battery);
     CTChargePolicyRead(&_chargePolicy);
     CTDisplayRead(&_displayInfo);
     CTCPURead(&_cpuInfo);
+    self.thermalDisabled = CTThermalDaemonDisabled();
     [self.tableView reloadData];
+}
+
+- (UITableViewCell *)newCell {
+    UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    cell.textLabel.numberOfLines = 1;
+    cell.detailTextLabel.numberOfLines = 2;
+    cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
+    return cell;
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -55,89 +74,66 @@ typedef NS_ENUM(NSInteger, CTSection) {
     switch (section) {
         case CTSectionBattery: return 8;
         case CTSectionCharge: return 2;
-        case CTSectionDisplay: return 2;
-        case CTSectionCPU: return 3;
+        case CTSectionDisplay: return 3;
+        case CTSectionCPU: return 6;
     }
     return 0;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     switch (section) {
-        case CTSectionBattery: return @"Battery";
-        case CTSectionCharge: return @"Charge Limit";
-        case CTSectionDisplay: return @"Display";
-        case CTSectionCPU: return @"CPU";
+        case CTSectionBattery: return CTL(@"section.battery");
+        case CTSectionCharge: return CTL(@"section.charge");
+        case CTSectionDisplay: return CTL(@"section.display");
+        case CTSectionCPU: return CTL(@"section.cpu");
     }
     return nil;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    if (section == CTSectionCharge) {
-        return @"Uses Apple's charging preference keys. For hard inflow inhibition, add an SMC backend for CH0C/CH0I on verified devices.";
-    }
-    if (section == CTSectionCPU) {
-        return [NSString stringWithUTF8String:self.cpuInfo.note];
-    }
-    if (section == CTSectionDisplay) {
-        return @"The app stores a preferred cap and can be extended with device-specific IOMobileFramebuffer/CoreDisplay writes after validation.";
+    switch (section) {
+        case CTSectionBattery: return CTL(@"footer.battery");
+        case CTSectionCharge: return CTL(@"footer.charge");
+        case CTSectionDisplay: return CTL(@"footer.display");
+        case CTSectionCPU: return CTL(@"footer.cpu");
     }
     return nil;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"cell" forIndexPath:indexPath];
-    cell.accessoryView = nil;
-    cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    cell.textLabel.numberOfLines = 1;
-    cell.detailTextLabel.text = nil;
-
-    NSString *title = @"";
-    NSString *value = @"";
-    if (indexPath.section == CTSectionBattery) {
-        [self configureBatteryTitle:&title value:&value row:indexPath.row];
-    } else if (indexPath.section == CTSectionCharge) {
-        [self configureChargeCell:cell row:indexPath.row];
-        return cell;
-    } else if (indexPath.section == CTSectionDisplay) {
-        [self configureDisplayCell:cell row:indexPath.row];
-        return cell;
-    } else if (indexPath.section == CTSectionCPU) {
-        [self configureCPUTitle:&title value:&value row:indexPath.row];
-    }
-
-    cell.textLabel.text = title.length ? [NSString stringWithFormat:@"%@  %@", title, value] : value;
+    UITableViewCell *cell = [self newCell];
+    if (indexPath.section == CTSectionBattery) [self configureBatteryCell:cell row:indexPath.row];
+    if (indexPath.section == CTSectionCharge) [self configureChargeCell:cell row:indexPath.row];
+    if (indexPath.section == CTSectionDisplay) [self configureDisplayCell:cell row:indexPath.row];
+    if (indexPath.section == CTSectionCPU) [self configureCPUCell:cell row:indexPath.row];
     return cell;
 }
 
-- (void)configureBatteryTitle:(NSString **)title value:(NSString **)value row:(NSInteger)row {
-    switch (row) {
-        case 0: *title = @"Percent"; *value = [NSString stringWithFormat:@"%d%%", self.battery.currentCapacityPercent]; break;
-        case 1: *title = @"Capacity"; *value = [NSString stringWithFormat:@"%d / %d mAh", self.battery.rawCurrentCapacityMah, self.battery.rawMaxCapacityMah]; break;
-        case 2: *title = @"Design"; *value = [NSString stringWithFormat:@"%d mAh", self.battery.designCapacityMah]; break;
-        case 3: *title = @"Cycles"; *value = [NSString stringWithFormat:@"%d", self.battery.cycleCount]; break;
-        case 4: *title = @"Voltage"; *value = [NSString stringWithFormat:@"%d mV", self.battery.voltageMv]; break;
-        case 5: *title = @"Current"; *value = [NSString stringWithFormat:@"%d mA", self.battery.amperageMa]; break;
-        case 6: *title = @"Temperature"; *value = [NSString stringWithFormat:@"%.2f C", self.battery.temperatureCentiC / 100.0]; break;
-        case 7: *title = @"Charging"; *value = self.battery.isCharging ? @"Yes" : (self.battery.externalConnected ? @"External power" : @"No"); break;
-    }
+- (void)setCell:(UITableViewCell *)cell title:(NSString *)title value:(NSString *)value detail:(NSString *)detail {
+    cell.textLabel.text = value.length ? [NSString stringWithFormat:@"%@  %@", title, value] : title;
+    cell.detailTextLabel.text = detail;
 }
 
-- (void)configureCPUTitle:(NSString **)title value:(NSString **)value row:(NSInteger)row {
+- (void)configureBatteryCell:(UITableViewCell *)cell row:(NSInteger)row {
     switch (row) {
-        case 0: *title = @"Current"; *value = [self hzString:self.cpuInfo.currentHz]; break;
-        case 1: *title = @"Max"; *value = [self hzString:self.cpuInfo.maxHz]; break;
-        case 2: *title = @"Min"; *value = [self hzString:self.cpuInfo.minHz]; break;
+        case 0: [self setCell:cell title:CTL(@"row.percent") value:[NSString stringWithFormat:@"%d%%", self.battery.currentCapacityPercent] detail:@"UI reported battery percentage."]; break;
+        case 1: [self setCell:cell title:CTL(@"row.capacity") value:[NSString stringWithFormat:@"%d / %d mAh", self.battery.rawCurrentCapacityMah, self.battery.rawMaxCapacityMah] detail:@"Raw current and full charge capacity."]; break;
+        case 2: [self setCell:cell title:CTL(@"row.design") value:[NSString stringWithFormat:@"%d mAh", self.battery.designCapacityMah] detail:@"Original design capacity reported by the battery."]; break;
+        case 3: [self setCell:cell title:CTL(@"row.cycles") value:[NSString stringWithFormat:@"%d", self.battery.cycleCount] detail:@"Charge cycle count stored by the gas gauge."]; break;
+        case 4: [self setCell:cell title:CTL(@"row.voltage") value:[NSString stringWithFormat:@"%d mV", self.battery.voltageMv] detail:@"Instant battery voltage."]; break;
+        case 5: [self setCell:cell title:CTL(@"row.current") value:[NSString stringWithFormat:@"%d mA", self.battery.amperageMa] detail:@"Positive or negative battery current."]; break;
+        case 6: [self setCell:cell title:CTL(@"row.temperature") value:[NSString stringWithFormat:@"%.2f C", self.battery.temperatureCentiC / 100.0] detail:@"Battery pack temperature sensor."]; break;
+        case 7: {
+            NSString *state = self.battery.isCharging ? CTL(@"yes") : (self.battery.externalConnected ? CTL(@"external.power") : CTL(@"no"));
+            [self setCell:cell title:CTL(@"row.charging") value:state detail:@"Charging and adapter connection state."];
+            break;
+        }
     }
-}
-
-- (NSString *)hzString:(uint64_t)hz {
-    if (hz == 0) return @"Unavailable";
-    return [NSString stringWithFormat:@"%.2f GHz", (double)hz / 1000000000.0];
 }
 
 - (void)configureChargeCell:(UITableViewCell *)cell row:(NSInteger)row {
     if (row == 0) {
-        cell.textLabel.text = @"Enabled";
+        [self setCell:cell title:CTL(@"row.enabled") value:nil detail:@"Enables Apple charging-limit preference behavior."];
         UISwitch *sw = [[UISwitch alloc] init];
         sw.on = self.chargePolicy.enabled;
         [sw addTarget:self action:@selector(chargeSwitchChanged:) forControlEvents:UIControlEventValueChanged];
@@ -145,29 +141,65 @@ typedef NS_ENUM(NSInteger, CTSection) {
         cell.accessoryView = sw;
         return;
     }
-    cell.textLabel.text = [NSString stringWithFormat:@"Limit %.0f%%", self.chargePolicy.maxPercent];
+    [self setCell:cell title:[NSString stringWithFormat:@"%@ %.0f%%", CTL(@"row.limit"), self.chargePolicy.maxPercent] value:nil detail:@"Target percentage where charging should stop."];
     UISlider *slider = [[UISlider alloc] initWithFrame:CGRectMake(0, 0, 170, 32)];
     slider.minimumValue = 40.0f;
     slider.maximumValue = 100.0f;
     slider.value = self.chargePolicy.maxPercent;
     [slider addTarget:self action:@selector(chargeSliderChanged:) forControlEvents:UIControlEventValueChanged];
-    self.chargeSlider = slider;
     cell.accessoryView = slider;
 }
 
 - (void)configureDisplayCell:(UITableViewCell *)cell row:(NSInteger)row {
     if (row == 0) {
-        cell.textLabel.text = @"Max FPS";
+        [self setCell:cell title:CTL(@"row.maxfps") value:nil detail:@"Preferred display cap written to app display preferences."];
         NSArray *items = @[@"60", @"80", @"90", @"120"];
         UISegmentedControl *seg = [[UISegmentedControl alloc] initWithItems:items];
         NSInteger selected = [items indexOfObject:[NSString stringWithFormat:@"%d", self.displayInfo.preferredMaxFps]];
         seg.selectedSegmentIndex = selected == NSNotFound ? 0 : selected;
         [seg addTarget:self action:@selector(fpsChanged:) forControlEvents:UIControlEventValueChanged];
-        self.fpsControl = seg;
         cell.accessoryView = seg;
         return;
     }
-    cell.textLabel.text = self.displayInfo.panelId[0] ? [NSString stringWithFormat:@"Panel  %s", self.displayInfo.panelId] : @"Panel  Unavailable";
+    if (row == 1) {
+        [self setCell:cell title:CTL(@"row.unlock48") value:nil detail:@"Writes display policy hints intended to bypass thermal 48FPS caps."];
+        UISwitch *sw = [[UISwitch alloc] init];
+        sw.on = self.displayInfo.unlock48Enabled;
+        [sw addTarget:self action:@selector(unlock48Changed:) forControlEvents:UIControlEventValueChanged];
+        cell.accessoryView = sw;
+        return;
+    }
+    NSString *panel = self.displayInfo.panelId[0] ? [NSString stringWithUTF8String:self.displayInfo.panelId] : CTL(@"unavailable");
+    [self setCell:cell title:CTL(@"row.panel") value:panel detail:@"Panel identifier from IOMobileFramebuffer when available."];
+}
+
+- (void)configureCPUCell:(UITableViewCell *)cell row:(NSInteger)row {
+    switch (row) {
+        case 0: [self setCell:cell title:CTL(@"row.cpu.current") value:[self hzString:self.cpuInfo.currentHz] detail:@"Often hidden by iOS on real devices."]; break;
+        case 1: [self setCell:cell title:CTL(@"row.cpu.max") value:[self hzString:self.cpuInfo.maxHz] detail:@"Public sysctl value if the kernel exposes it."]; break;
+        case 2: [self setCell:cell title:CTL(@"row.cpu.min") value:[self hzString:self.cpuInfo.minHz] detail:@"Public sysctl value if the kernel exposes it."]; break;
+        case 3: [self setCell:cell title:@"Machine" value:[NSString stringWithUTF8String:self.cpuInfo.machine] detail:@"Hardware model identifier."]; break;
+        case 4: [self setCell:cell title:@"Cores" value:[NSString stringWithFormat:@"%d / %d", self.cpuInfo.activeCores, self.cpuInfo.logicalCores] detail:@"Online and configured logical cores."]; break;
+        case 5: {
+            [self setCell:cell title:CTL(@"row.thermal") value:nil detail:CTL(@"thermal.warning")];
+            UISwitch *sw = [[UISwitch alloc] init];
+            sw.on = self.thermalDisabled;
+            [sw addTarget:self action:@selector(thermalChanged:) forControlEvents:UIControlEventValueChanged];
+            cell.accessoryView = sw;
+            break;
+        }
+    }
+}
+
+- (NSString *)hzString:(uint64_t)hz {
+    if (hz == 0) return CTL(@"unavailable");
+    return [NSString stringWithFormat:@"%.2f GHz", (double)hz / 1000000000.0];
+}
+
+- (void)languageChanged:(UISegmentedControl *)sender {
+    CTSetCurrentLanguage(sender.selectedSegmentIndex == 1 ? CTLanguageEnglish : CTLanguageSimplifiedChinese);
+    [self applyLanguage];
+    [self refreshAll];
 }
 
 - (void)chargeSwitchChanged:(UISwitch *)sender {
@@ -192,6 +224,23 @@ typedef NS_ENUM(NSInteger, CTSection) {
 - (void)fpsChanged:(UISegmentedControl *)sender {
     NSString *text = [sender titleForSegmentAtIndex:sender.selectedSegmentIndex];
     CTDisplaySetPreferredMaxFPS(text.intValue);
+    [self refreshAll];
+}
+
+- (void)unlock48Changed:(UISwitch *)sender {
+    CTDisplaySetUnlock48FPS(sender.on);
+    [self refreshAll];
+}
+
+- (void)thermalChanged:(UISwitch *)sender {
+    const char *args[] = {"thermal", sender.on ? "off" : "on", NULL};
+    CTStatus status = CTRootRunHelper(args);
+    if (status != CTStatusOK) {
+        CTThermalSetDaemonDisabled(sender.on);
+    }
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:CTL(@"row.thermal") message:CTL(@"reboot.required") preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
     [self refreshAll];
 }
 
