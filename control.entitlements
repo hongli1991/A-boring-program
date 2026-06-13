@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>platform-application</key>
+    <true/>
+    <key>com.apple.private.security.no-container</key>
+    <true/>
+    <key>com.apple.private.iokit.batterydata</key>
+    <true/>
+    <key>com.apple.private.gasgauge-update</key>
+    <true/>
+    <key>com.apple.gasgauge.user-access-device</key>
+    <true/>
+    <key>com.apple.private.MobileContainerManager.allowed</key>
+    <true/>
+    <key>com.apple.private.security.storage.AppDataContainers</key>
+    <true/>
+    <key>com.apple.private.security.storage.MobileContainerManager</key>
+    <true/>
+    <key>com.apple.private.system-task-ports</key>
+    <true/>
+    <key>com.apple.private.skip-library-validation</key>
+    <true/>
+    <key>com.apple.private.persona-mgmt</key>
+    <true/>
+    <key>com.apple.private.iokit-user-client-class</key>
+    <array>
+        <string>AppleSmartBatteryManagerUserClient</string>
+        <string>AppleSMCUserClient</string>
+        <string>IOMobileFramebufferUserClient</string>
+    </array>
+    <key>com.apple.private.iokit-user-client-access</key>
+    <array>
+        <string>AppleSmartBatteryManagerUserClient</string>
+        <string>AppleSMCUserClient</string>
+        <string>IOMobileFramebufferUserClient</string>
+    </array>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.codex.control</string>
+    </array>
+</dict>
+</plist>
